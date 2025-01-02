@@ -54,6 +54,10 @@ jobs:
         if: steps.update.outputs.updated == 'true'
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Build
+        if: steps.update.outputs.updated == 'true'
+        run: cargo build --verbose
+
       - name: Run tests
         if: steps.update.outputs.updated == 'true'
         run: cargo test --verbose
