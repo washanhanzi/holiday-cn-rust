@@ -1,0 +1,22 @@
+[package]
+name = "holiday-cn"
+version = "0.1.20250102"
+edition = "2021"
+description = "Chinese holiday library"
+license = "MIT"
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+once_cell = "1.19"
+dashmap = "6.1"
+time = { version = "0.3", features = [
+    "parsing",
+    "formatting",
+    "macros",
+    "local-offset",
+] }
+
+[build-dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
