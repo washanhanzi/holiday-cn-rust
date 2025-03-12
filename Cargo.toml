@@ -1,6 +1,6 @@
 [package]
 name = "holiday-cn"
-version = "0.1.20250303"
+version = "0.1.20250312"
 edition = "2021"
 description = "Chinese holiday library"
 license = "MIT"
