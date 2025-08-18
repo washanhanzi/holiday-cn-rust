@@ -32,10 +32,15 @@ jobs:
             echo "No changes detected in submodule"
             echo "updated=false" >> $GITHUB_OUTPUT
           else
-            git add .
-            git commit -m "chore: update submodule for $(date +%Y-%m-%d)"
-            git push
-            echo "updated=true" >> $GITHUB_OUTPUT
+            # Check if the committed changes contain .json files
+            if git diff --name-only HEAD | grep -q '\.json$'; then
+              git add .
+              git commit -m "chore: update submodule for $(date +%Y-%m-%d)"
+              git push
+            else
+              echo "No .json files in submodule changes, skipping publish"
+              exit 0
+            fi
           fi
 
       - name: Get current date
@@ -43,7 +48,6 @@ jobs:
         run: echo "date=$(date +%Y%m%d)" >> $GITHUB_OUTPUT
 
       - name: Update version in Cargo.toml
-        if: steps.update.outputs.updated == 'true'
         run: |
           sed -i "s/^version = .*/version = \"0.1.${{ steps.date.outputs.date }}\"/" Cargo.toml
           git add Cargo.toml
@@ -51,26 +55,21 @@ jobs:
           git push
 
       - name: Install Rust toolchain
-        if: steps.update.outputs.updated == 'true'
         uses: dtolnay/rust-toolchain@stable
 
       - name: Build
-        if: steps.update.outputs.updated == 'true'
         run: cargo build --verbose
 
       - name: Run tests
-        if: steps.update.outputs.updated == 'true'
         run: cargo test --verbose
 
       - name: Commit Cargo.lock changes
-        if: steps.update.outputs.updated == 'true'
         run: |
           git add Cargo.lock
           git commit -m "chore: update Cargo.lock" || echo "No changes to commit"
           git push || echo "No changes to push"
 
       - name: Create Release
-        if: steps.update.outputs.updated == 'true'
         uses: softprops/action-gh-release@v1
         with:
           name: Release 0.1.${{ steps.date.outputs.date }}
@@ -80,7 +79,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Publish to crates.io
-        if: steps.update.outputs.updated == 'true'
         run: cargo publish --token ${CRATES_TOKEN}
         env:
           CRATES_TOKEN: ${{ secrets.CRATES_TOKEN }}
