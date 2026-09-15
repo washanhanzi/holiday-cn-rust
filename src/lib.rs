@@ -1,4 +1,4 @@
-use time::{format_description, Date, Error, UtcOffset, Weekday};
+use time::{macros::format_description, Date, Error, UtcOffset, Weekday};
 
 include!(concat!(env!("OUT_DIR"), "/holiday_data.rs"));
 
@@ -15,13 +15,13 @@ include!(concat!(env!("OUT_DIR"), "/holiday_data.rs"));
 ///   * Optional holiday name if it exists
 /// * `Err` - If the date string is invalid
 pub fn is_offday(date: &str) -> Result<(bool, Option<&'static str>), Error> {
-    let format = format_description::parse("[year]-[month]-[day]")?;
-    let date = Date::parse(date, &format)?;
+    let format = format_description!("[year]-[month]-[day]");
+    let date = Date::parse(date, format)?;
     let year = date.year();
     let weekday = date.weekday();
 
     if let Some(year_data) = get_year_data(year) {
-        if let Some((name, is_off_day)) = year_data.get(&date.format(&format).unwrap()) {
+        if let Some((name, is_off_day)) = year_data.get(&date.format(format).unwrap()) {
             return Ok((*is_off_day, Some(name)));
         }
     }
@@ -55,8 +55,8 @@ pub fn is_workday(date: &str) -> Result<bool, Error> {
 pub fn is_now_offday() -> (bool, Option<&'static str>) {
     let now = time::OffsetDateTime::now_utc().to_offset(UtcOffset::from_hms(8, 0, 0).unwrap());
     let date = now.date();
-    let format = format_description::parse("[year]-[month]-[day]").unwrap();
-    is_offday(&date.format(&format).unwrap()).unwrap()
+    let format = format_description!("[year]-[month]-[day]");
+    is_offday(&date.format(format).unwrap()).unwrap()
 }
 
 /// Check if current time (in UTC+8) is a workday

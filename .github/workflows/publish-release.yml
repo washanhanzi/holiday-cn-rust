@@ -1,73 +1,66 @@
 name: Publish Release
 
 on:
-  push:
-    branches:
-      - release
-  workflow_dispatch:  # Allow manual triggering
+  workflow_call:
+    inputs:
+      commit:
+        description: Exact commit to test and publish
+        required: true
+        type: string
+    secrets:
+      CRATES_TOKEN:
+        required: true
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
+  test:
+    uses: ./.github/workflows/test.yml
+    with:
+      ref: ${{ inputs.commit || github.sha }}
+
   publish:
+    needs: test
     runs-on: ubuntu-latest
+    concurrency:
+      group: holiday-crate-release
+      cancel-in-progress: false
     permissions:
       contents: write
     steps:
-      - name: Checkout release branch
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
-          ref: release
-          token: ${{ secrets.GITHUB_TOKEN }}
+          ref: ${{ inputs.commit || github.sha }}
+          submodules: true
           fetch-depth: 0
-
-      - name: Configure git
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Validate committed version and tag
+        id: release
         run: |
-          git config --global user.name 'github-actions[bot]'
-          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
-
-      - name: Get current date
-        id: date
-        run: echo "date=$(date +%Y%m%d)" >> $GITHUB_OUTPUT
-
-      - name: Update version in Cargo.toml
+          version=$(python3 scripts/bump-version.py --check)
+          tag="v$version"
+          if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
+            test "$(git rev-list -n 1 "$tag")" = "$(git rev-parse HEAD)"
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+      - name: Publish crate (skip already published versions on retry)
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CRATES_TOKEN }}
+          VERSION: ${{ steps.release.outputs.version }}
         run: |
-          sed -i "s/^version = .*/version = \"0.1.${{ steps.date.outputs.date }}\"/" Cargo.toml
-          git add Cargo.toml
-          git commit -m "chore: bump version to 0.1.${{ steps.date.outputs.date }}"
-
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Build
-        run: cargo build --verbose
-
-      - name: Run tests
-        run: cargo test --verbose
-
-      - name: Commit Cargo.lock changes
-        run: |
-          git add Cargo.lock
-          git commit -m "chore: update Cargo.lock" || echo "No changes to commit"
-
-      - name: Push release branch
-        run: git push origin release
-
-      - name: Create Release
-        uses: softprops/action-gh-release@v1
+          status=$(curl --retry 3 --silent --show-error --output /tmp/crate.json --write-out '%{http_code}' "https://crates.io/api/v1/crates/holiday-cn/$VERSION")
+          case "$status" in
+            200) echo "Crate version already published" ;;
+            404) cargo publish --locked ;;
+            *) echo "Registry check failed: HTTP $status" >&2; exit 1 ;;
+          esac
+      - uses: softprops/action-gh-release@v3
         with:
-          name: Release 0.1.${{ steps.date.outputs.date }}
-          tag_name: v0.1.${{ steps.date.outputs.date }}
+          name: Release ${{ steps.release.outputs.version }}
+          tag_name: ${{ steps.release.outputs.tag }}
+          target_commitish: ${{ inputs.commit || github.sha }}
           generate_release_notes: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Publish to crates.io
-        run: cargo publish --token ${CRATES_TOKEN}
-        env:
-          CRATES_TOKEN: ${{ secrets.CRATES_TOKEN }}
-
-      - name: Rebase main branch onto release
-        run: |
-          git fetch origin main
-          git checkout main
-          git rebase release
-          git push origin main
+          make_latest: true

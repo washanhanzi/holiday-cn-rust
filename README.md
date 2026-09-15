@@ -15,8 +15,13 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-holiday-cn = "0.1"
+holiday-cn = "0.2"
 ```
+
+## Versioning
+
+Versions use a UTC timestamp, such as `0.2.20260915072418`
+(September 15, 2026 at 07:24:18 UTC).
 
 ## Usage
 
